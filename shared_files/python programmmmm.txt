@@ -1,0 +1,36 @@
+import socket
+import uuid
+import wmi
+
+SERVER_IP = "192.168.1.100"  # Replace with your server system's IP address
+SERVER_PORT = 5000
+
+def get_mac_address():
+    """Returns the system's MAC address."""
+    mac = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xFF) for elements in range(0, 2*6, 8)][::-1])
+    return mac.upper()
+
+def send_alert(device_name):
+    """Send USB removal alert with MAC address to the server."""
+    mac_address = get_mac_address()
+    message = f"MAC: {mac_address} | Device Removed: {device_name}"
+
+    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    client.sendto(message.encode(), (SERVER_IP, SERVER_PORT))
+
+def usb_monitor():
+    """Monitor USB devices and send alert with device name & MAC when unplugged."""
+    c = wmi.WMI()
+    watcher = c.Win32_PnPEntity.watch_for("modification")
+
+    print("Monitoring USB devices...")
+
+    while True:
+        event = watcher()
+        if event.ConfigManagerErrorCode == 47:  # Error 47 means device is being removed
+            device_name = event.Name if event.Name else "Unknown Device"
+            send_alert(device_name)
+            print(f"ALERT: {device_name} unplugged from {get_mac_address()}!")
+
+if __name__ == "__main__":
+    usb_monitor()
